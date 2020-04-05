@@ -40,11 +40,8 @@ func dirTree(out io.Writer, path string, files bool) error {
 }
 
 func printDirTree(content []os.FileInfo, out io.Writer, basePath string, prefix string, files bool) error {
-
-	prevPrefix := ""
 	for ind, val := range content {
 		line, preff := getLine(prefix, isLastItem(ind, content), val)
-		prevPrefix = preff
 		fmt.Fprintln(out, line)
 
 		fullPath := basePath + string(os.PathSeparator) + val.Name()
@@ -55,7 +52,7 @@ func printDirTree(content []os.FileInfo, out io.Writer, basePath string, prefix 
 		} else if err != nil {
 			return err
 		}
-		printDirTree(content1, out, fullPath, prevPrefix, files)
+		printDirTree(content1, out, fullPath, preff, files)
 	}
 	return nil
 }

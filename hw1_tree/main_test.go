@@ -15,10 +15,10 @@ const testFullResult = `├───project
 │	│	└───ipsum
 │	│		└───gopher.png (70372b)
 │	├───css
-│	│	└───body.css (28b)
+│	│	└───body.css (35b)
 │	├───empty.txt (empty)
 │	├───html
-│	│	└───index.html (57b)
+│	│	└───index.html (56b)
 │	├───js
 │	│	└───site.js (10b)
 │	└───z_lorem
