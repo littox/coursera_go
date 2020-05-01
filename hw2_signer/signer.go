@@ -3,13 +3,9 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strings"
-	"time"
-
-	//"runtime"
 	"strconv"
+	"strings"
 	"sync"
-	//"time"
 )
 
 func ExecutePipeline(jobs ...job) {
@@ -35,52 +31,47 @@ func ExecutePipeline(jobs ...job) {
 }
 
 var SingleHash = func(in, out chan interface{}) {
+	wg := &sync.WaitGroup{}
 	for dataRaw := range in {
-		//dataRaw := <-in
 		data := strconv.Itoa(dataRaw.(int))
-
-		md5chan := make(chan string)
-		crc32md5chan := make(chan string)
-		crc32chan := make(chan string)
-		go func(md5chan,
-			crc32md5chan,
-			crc32chan chan string) {
+		md5 := DataSignerMd5(data)
+		wg.Add(1)
+		go func(md5, data string, group *sync.WaitGroup, out chan interface{}) {
+			defer wg.Done()
+			crc32md5chan := make(chan string)
+			crc32chan := make(chan string)
 			go putCrc32ToChan(crc32chan, data)
-			go putMd5ToChan(md5chan, data)
-			go putCrc32ToChan(crc32md5chan, <-md5chan)
-		}(md5chan,
-			crc32md5chan,
-			crc32chan)
-
-		out <- <-crc32chan + "~" + <-crc32md5chan
+			go putCrc32ToChan(crc32md5chan, md5)
+			out <- <-crc32chan + "~" + <-crc32md5chan
+		}(md5, data, wg, out)
 	}
+	wg.Wait()
 }
 var MultiHash = func(in, out chan interface{}) {
+	wg := &sync.WaitGroup{}
 	for dataRaw := range in {
-
-		//dataRaw := <-in
-		data, ok := dataRaw.(string)
-		if !ok {
-			fmt.Printf("cant convert result data to string")
-		}
-
+		data := dataRaw.(string)
 		const count = 5
-		var counters = map[int]string{}
-		mu := &sync.Mutex{}
-		wg := &sync.WaitGroup{}
+		wg.Add(1)
+		go func(out chan interface{}) {
+			defer wg.Done()
+			var counters = map[int]string{}
+			mu := &sync.Mutex{}
+			wgLoc := &sync.WaitGroup{}
 
-		for i := 0; i <= count; i++ {
-			wg.Add(1)
-			go putMultihashPartToMap(counters, i, data, mu, wg)
-		}
+			for i := 0; i <= count; i++ {
+				wgLoc.Add(1)
+				go putMultihashPartToMap(counters, i, data, mu, wgLoc)
+			}
 
-		wg.Wait()
+			wgLoc.Wait()
 
-		out <- getMultihash(counters, count)
+			out <- getMultihash(counters, count)
+		}(out)
 	}
+	wg.Wait()
 }
 
-//
 func getMultihash(counters map[int]string, count int) string {
 	var res string
 	for i := 0; i <= count; i++ {
@@ -101,24 +92,14 @@ func putCrc32ToChan(ch chan string, data string) {
 	ch <- DataSignerCrc32(data)
 }
 
-func putMd5ToChan(ch chan string, data string) {
-	ch <- DataSignerMd5(data)
-}
-
 var CombineResults = func(in, out chan interface{}) {
 	var all []string
-	start := time.Now()
 	for dataRaw := range in {
-		data, ok := dataRaw.(string)
-		if !ok {
-			fmt.Printf("cant convert result data to string CombineResults")
-		}
+		data := dataRaw.(string)
 		all = append(all, data)
 	}
-	end := time.Since(start)
 	sort.Slice(all, func(i, j int) bool {
 		return all[i] < all[j]
 	})
 	out <- strings.Join(all, "_")
-	fmt.Println("exec time multihash", end)
 }
